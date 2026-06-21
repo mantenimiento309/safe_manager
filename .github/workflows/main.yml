@@ -28,32 +28,33 @@ jobs:
       - name: 5. Ejecutar Test Automatizados (Pruebas Unitarias)
         run: flutter test || true
 
-      - name: 6. Compilar para iPhone (Sin firmas de pago) y registrar Log
-        # Usamos '--simulator' para saltar por completo la validación de perfiles de aprovisionamiento de Apple
+      - name: 6. Compilar para iPhone (Simulador) y registrar Log
+        # La combinación '--debug --simulator' es la única que genera un código de salida exitoso (0) sin firmas
         run: |
           echo "=== INICIO DE COMPILACIÓN DE FLUTTER ===" > build_log.txt
           date >> build_log.txt
-          flutter build ios --release --simulator 2>&1 | tee -a build_log.txt
+          flutter build ios --debug --simulator 2>&1 | tee -a build_log.txt
 
       - name: 6.5. Logger de estructura de archivos (Post-Build)
-        # Este paso audita el estado del directorio de salida real reportado por el log
+        # Este paso audita el estado del directorio de salida real para verificar el Runner.app
         run: |
           echo -e "\n=== ESTRUCTURA DEL DIRECTORIO DE SALIDA ===" >> build_log.txt
-          if [ -d "build/ios/Release-iphoneos/Runner.app" ]; then
-            echo "✅ Runner.app encontrado con éxito en Release-iphoneos." >> build_log.txt
-            echo "Contenido de Runner.app:" >> build_log.txt
-            ls -la build/ios/Release-iphoneos/Runner.app >> build_log.txt
-          else
-            echo "❌ ERROR: No se encontró Runner.app en Release-iphoneos." >> build_log.txt
+          if [ -d "build/ios/iphonesimulator" ]; then
+            echo "✅ Carpeta de simulador encontrada." >> build_log.txt
+            ls -R build/ios/iphonesimulator >> build_log.txt
+          elif [ -d "build/ios" ]; then
+            echo "⚠️ Estructura alternativa detectada:" >> build_log.txt
             ls -R build/ios >> build_log.txt
+          else
+            echo "❌ El directorio build/ios no se generó." >> build_log.txt
           fi
 
       - name: 7. Dejar el archivo listo para descargar en GitHub
-        # Corregido con la ruta real del log: 'Release-iphoneos' en lugar de 'iphoneos'
+        # El doble asterisco '**' busca de manera inteligente el paquete .app en cualquier subcarpeta de build/ios/
         uses: actions/upload-artifact@v4
         with:
           name: Aplicacion-iOS-Terminada
-          path: build/ios/Release-iphoneos/Runner.app/*
+          path: build/ios/**/*.app/*
 
       - name: 8. Guardar archivo Logger en los artefactos
         if: always()
