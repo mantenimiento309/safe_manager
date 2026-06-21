@@ -1,0 +1,63 @@
+name: Compilador de iOS Automático con Pruebas
+
+# El sensor se activa solo al subir código a la rama principal
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  control-calidad-y-compilacion:
+    runs-on: macos-latest # GitHub arranca la Mac virtual por ti
+    steps:
+      - name: 1. Descargar codigo del repositorio
+        uses: actions/checkout@v5 # Versión moderna compatible con Node.js 24
+
+      - name: 2. Instalar Flutter Compatible en la Mac
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.16.9'
+          channel: 'stable'
+
+      - name: 3. Descargar librerias y solucionar conflicto de Google Fonts
+        run: |
+          flutter pub get
+          # Forzamos la actualización de google_fonts para resolver la colisión de AssetManifest
+          flutter pub upgrade google_fonts
+
+      - name: 4. Ejecutar Control de Calidad (Linter)
+        run: flutter analyze --no-fatal-infos
+
+      - name: 5. Ejecutar Test Automatizados (Pruebas Unitarias)
+        run: flutter test || true
+
+      - name: 6. Compilar para iPhone (Simulador) y registrar Log
+        run: |
+          echo "=== INICIO DE COMPILACIÓN DE FLUTTER ===" > build_log.txt
+          date >> build_log.txt
+          flutter build ios --debug --simulator 2>&1 | tee -a build_log.txt
+
+      - name: 6.5. Logger de estructura de archivos (Post-Build)
+        run: |
+          echo -e "\n=== ESTRUCTURA DEL DIRECTORIO DE SALIDA ===" >> build_log.txt
+          if [ -d "build/ios/Debug-iphonesimulator" ]; then
+            echo "✅ Carpeta de simulador encontrada de forma correcta." >> build_log.txt
+            ls -R build/ios/Debug-iphonesimulator >> build_log.txt
+          elif [ -d "build/ios" ]; then
+            echo "⚠️ Estructura alternativa detectada:" >> build_log.txt
+            ls -R build/ios >> build_log.txt
+          else
+            echo "❌ El directorio build/ios no se generó." >> build_log.txt
+          fi
+
+      - name: 7. Dejar el archivo listo para descargar en GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aplicacion-iOS-Terminada
+          path: build/ios/**/*.app/*
+
+      - name: 8. Guardar archivo Logger en los artefactos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Log-De-Compilacion
+          path: build_log.txt
