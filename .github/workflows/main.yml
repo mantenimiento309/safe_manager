@@ -1,0 +1,71 @@
+name: Compilador de iOS Automático con Pruebas
+
+# El sensor se activa solo al subir código a la rama principal
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  control-calidad-y-compilacion:
+    runs-on: macos-latest # GitHub arranca la Mac virtual por ti
+    steps:
+      - name: 1. Descargar codigo del repositorio
+        uses: actions/checkout@v5 # Versión moderna compatible con Node.js 24
+
+      - name: 2. Instalar Flutter en la Mac
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: 3. Descargar librerias del proyecto
+        # Se usa 'working-directory' para entrar automáticamente a la carpeta del proyecto
+        working-directory: ./safe_manager
+        run: flutter pub get
+
+      - name: 4. Ejecutar Control de Calidad (Linter)
+        # Analiza que tu código no tenga errores de sintaxis o malas prácticas
+        working-directory: ./safe_manager
+        run: flutter analyze
+
+      - name: 5. Ejecutar Test Automatizados (Pruebas Unitarias)
+        # Corre todos los archivos de prueba que estén dentro de la carpeta /test
+        working-directory: ./safe_manager
+        run: flutter test
+
+      - name: 6. Compilar para iPhone (Sin firmas de pago) y registrar Log
+        # Redireccionamos la salida de la compilación tanto a la consola como a un archivo log externo
+        working-directory: ./safe_manager
+        run: |
+          echo "=== INICIO DE COMPILACIÓN DE FLUTTER ===" > build_log.txt
+          date >> build_log.txt
+          flutter build ios --release --no-codesign 2>&1 | tee -a build_log.txt
+
+      - name: 6.5. Logger de estructura de archivos (Post-Build)
+        # Este paso audita el estado del caché y del directorio final para verificar qué se creó
+        working-directory: ./safe_manager
+        run: |
+          echo -e "\n=== ESTRUCTURA DEL DIRECTORIO DE SALIDA ===" >> build_log.txt
+          if [ -d "build/ios/iphoneos/Runner.app" ]; then
+            echo "✅ Runner.app encontrado con éxito." >> build_log.txt
+            echo "Contenido de Runner.app:" >> build_log.txt
+            ls -la build/ios/iphoneos/Runner.app >> build_log.txt
+          else
+            echo "❌ ERROR: No se encontró Runner.app en la ruta esperada." >> build_log.txt
+            echo "Contenido alternativo de build/ios/:" >> build_log.txt
+            ls -R build/ios >> build_log.txt
+          fi
+
+      - name: 7. Dejar el archivo listo para descargar en GitHub
+        # El '/*' al final soluciona el problema al obligar a GitHub a empaquetar el contenido del directorio Runner.app
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aplicacion-iOS-Terminada
+          path: safe_manager/build/ios/iphoneos/Runner.app/*
+
+      - name: 8. Guardar archivo Logger en los artefactos
+        # Sube el reporte build_log.txt para que puedas descargarlo directamente si la compilación falla o pasa
+        if: always() # Asegura que el log se suba incluso si los pasos anteriores fallaron
+        uses: actions/upload-artifact@v4
+        with:
+          name: Log-De-Compilacion
+          path: safe_manager/build_log.txt
