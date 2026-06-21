@@ -44,7 +44,7 @@
 
 ### Screen Create Account
 - Random number
-- Verify Password
+- Verify Password asd
 
 ### Screen Login
 - Random number
