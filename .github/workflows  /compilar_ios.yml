@@ -1,0 +1,44 @@
+name: Compilador de iOS Automático con Pruebas
+
+# El sensor se activa solo al subir código a la rama principal
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  control-calidad-y-compilacion:
+    runs-on: macos-latest # GitHub arranca la Mac virtual por ti
+    steps:
+      - name: 1. Descargar codigo del repositorio
+        uses: actions/checkout@v5 # Versión moderna compatible con Node.js 24
+
+      - name: 2. Instalar Flutter en la Mac
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: 3. Descargar librerias del proyecto
+        run: flutter pub get
+
+      - name: 4. Ejecutar Control de Calidad (Linter)
+        # Analiza que tu código no tenga errores de sintaxis o malas prácticas
+        run: flutter analyze
+
+      - name: 5. Ejecutar Test Automatizados (Pruebas Unitarias)
+        # Corre todos los archivos de prueba que estén dentro de la carpeta /test
+        run: flutter test
+
+      - name: 6. Compilar para iPhone (Sin firmas de pago)
+        # Solo llegará a este paso si los pasos 4 y 5 pasaron con éxito
+        run: flutter build ios --release --no-codesign
+
+      - name: 7. Empaquetar el resultado en un archivo ZIP
+        run: |
+          cd build/ios/iphoneos
+          zip -r MiApp_iOS.zip Runner.app
+
+      - name: 8. Dejar el archivo listo para descargar en GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aplicacion-iOS-Terminada
+          path: build/ios/iphoneos/MiApp_iOS.zip
