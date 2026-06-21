@@ -12,9 +12,11 @@ jobs:
       - name: 1. Descargar codigo del repositorio
         uses: actions/checkout@v5 # Versión moderna compatible con Node.js 24
 
-      - name: 2. Instalar Flutter en la Mac
+      - name: 2. Instalar Flutter Compatible en la Mac
         uses: subosito/flutter-action@v2
         with:
+          # Forzamos una versión que use un SDK de Dart menor a 3.3.0
+          flutter-version: '3.16.9'
           channel: 'stable'
 
       - name: 3. Descargar librerias del proyecto
@@ -50,7 +52,6 @@ jobs:
           fi
 
       - name: 7. Dejar el archivo listo para descargar en GitHub
-        # Al estar en la raíz, removemos el prefijo 'safe_manager/'
         uses: actions/upload-artifact@v4
         with:
           name: Aplicacion-iOS-Terminada
