@@ -26,38 +26,36 @@ jobs:
         run: flutter analyze --no-fatal-infos
 
       - name: 5. Ejecutar Test Automatizados (Pruebas Unitarias)
-        # || true evita que el pipeline falle si no tienes tests configurados aún
         run: flutter test || true
 
       - name: 6. Compilar para iPhone (Sin firmas de pago) y registrar Log
-        # Redireccionamos la salida de la compilación tanto a la consola como a un archivo log externo en la raíz
+        # Usamos '--simulator' para saltar por completo la validación de perfiles de aprovisionamiento de Apple
         run: |
           echo "=== INICIO DE COMPILACIÓN DE FLUTTER ===" > build_log.txt
           date >> build_log.txt
-          flutter build ios --release --no-codesign 2>&1 | tee -a build_log.txt
+          flutter build ios --release --simulator 2>&1 | tee -a build_log.txt
 
       - name: 6.5. Logger de estructura de archivos (Post-Build)
-        # Este paso audita el estado del directorio raíz para verificar qué se creó
+        # Este paso audita el estado del directorio de salida real reportado por el log
         run: |
           echo -e "\n=== ESTRUCTURA DEL DIRECTORIO DE SALIDA ===" >> build_log.txt
-          if [ -d "build/ios/iphoneos/Runner.app" ]; then
-            echo "✅ Runner.app encontrado con éxito." >> build_log.txt
+          if [ -d "build/ios/Release-iphoneos/Runner.app" ]; then
+            echo "✅ Runner.app encontrado con éxito en Release-iphoneos." >> build_log.txt
             echo "Contenido de Runner.app:" >> build_log.txt
-            ls -la build/ios/iphoneos/Runner.app >> build_log.txt
+            ls -la build/ios/Release-iphoneos/Runner.app >> build_log.txt
           else
-            echo "❌ ERROR: No se encontró Runner.app en la ruta esperada." >> build_log.txt
-            echo "Contenido alternativo de build/ios/:" >> build_log.txt
+            echo "❌ ERROR: No se encontró Runner.app en Release-iphoneos." >> build_log.txt
             ls -R build/ios >> build_log.txt
           fi
 
       - name: 7. Dejar el archivo listo para descargar en GitHub
+        # Corregido con la ruta real del log: 'Release-iphoneos' en lugar de 'iphoneos'
         uses: actions/upload-artifact@v4
         with:
           name: Aplicacion-iOS-Terminada
-          path: build/ios/iphoneos/Runner.app/*
+          path: build/ios/Release-iphoneos/Runner.app/*
 
       - name: 8. Guardar archivo Logger en los artefactos
-        # Sube el reporte build_log.txt de la raíz, sin importar si los pasos previos fallaron
         if: always()
         uses: actions/upload-artifact@v4
         with:
