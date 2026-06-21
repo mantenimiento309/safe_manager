@@ -32,14 +32,40 @@ jobs:
         working-directory: ./safe_manager
         run: flutter test
 
-      - name: 6. Compilar para iPhone (Sin firmas de pago)
-        # Solo llegará a este paso si los pasos 4 y 5 pasaron con éxito
+      - name: 6. Compilar para iPhone (Sin firmas de pago) y registrar Log
+        # Redireccionamos la salida de la compilación tanto a la consola como a un archivo log externo
         working-directory: ./safe_manager
-        run: flutter build ios --release --no-codesign
+        run: |
+          echo "=== INICIO DE COMPILACIÓN DE FLUTTER ===" > build_log.txt
+          date >> build_log.txt
+          flutter build ios --release --no-codesign 2>&1 | tee -a build_log.txt
+
+      - name: 6.5. Logger de estructura de archivos (Post-Build)
+        # Este paso audita el estado del caché y del directorio final para verificar qué se creó
+        working-directory: ./safe_manager
+        run: |
+          echo -e "\n=== ESTRUCTURA DEL DIRECTORIO DE SALIDA ===" >> build_log.txt
+          if [ -d "build/ios/iphoneos/Runner.app" ]; then
+            echo "✅ Runner.app encontrado con éxito." >> build_log.txt
+            echo "Contenido de Runner.app:" >> build_log.txt
+            ls -la build/ios/iphoneos/Runner.app >> build_log.txt
+          else
+            echo "❌ ERROR: No se encontró Runner.app en la ruta esperada." >> build_log.txt
+            echo "Contenido alternativo de build/ios/:" >> build_log.txt
+            ls -R build/ios >> build_log.txt
+          fi
 
       - name: 7. Dejar el archivo listo para descargar en GitHub
-        # upload-artifact guarda el Runner.app generado dentro de la ruta de compilación de safe_manager
+        # El '/*' al final soluciona el problema al obligar a GitHub a empaquetar el contenido del directorio Runner.app
         uses: actions/upload-artifact@v4
         with:
           name: Aplicacion-iOS-Terminada
-          path: safe_manager/build/ios/iphoneos/Runner.app
+          path: safe_manager/build/ios/iphoneos/Runner.app/*
+
+      - name: 8. Guardar archivo Logger en los artefactos
+        # Sube el reporte build_log.txt para que puedas descargarlo directamente si la compilación falla o pasa
+        if: always() # Asegura que el log se suba incluso si los pasos anteriores fallaron
+        uses: actions/upload-artifact@v4
+        with:
+          name: Log-De-Compilacion
+          path: safe_manager/build_log.txt
