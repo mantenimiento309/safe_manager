@@ -1,0 +1,89 @@
+
+name: Generar IPA iOS sin firma
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-ios-unsigned-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-ios-unsigned:
+    name: Compilar Safe Manager para iPhone
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Seleccionar Xcode 16.4
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.4'
+
+      - name: Instalar Flutter estable
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Mostrar versiones
+        run: |
+          flutter --version
+          dart --version
+          xcodebuild -version
+          xcodebuild -showsdks
+
+      - name: Instalar dependencias
+        run: flutter pub get
+
+      - name: Compilar iOS sin firma
+        run: |
+          set -o pipefail
+          flutter build ios --release --no-codesign 2>&1 | tee build-ios.log
+
+      - name: Crear IPA sin firma
+        run: |
+          set -euo pipefail
+
+          APP_PATH="build/ios/iphoneos/Runner.app"
+          IPA_DIRECTORY="build/ios/ipa"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "ERROR: No se encontró Runner.app"
+            find build/ios -name "*.app" -print || true
+            exit 1
+          fi
+
+          rm -rf "$IPA_DIRECTORY"
+          mkdir -p "$IPA_DIRECTORY/Payload"
+
+          ditto "$APP_PATH" "$IPA_DIRECTORY/Payload/Runner.app"
+
+          cd "$IPA_DIRECTORY"
+          zip -qry SafeManager-unsigned.ipa Payload
+
+          test -s SafeManager-unsigned.ipa
+          unzip -t SafeManager-unsigned.ipa
+
+      - name: Subir IPA para descargar
+        uses: actions/upload-artifact@v4
+        with:
+          name: SafeManager-iPhone-sin-firma
+          path: build/ios/ipa/SafeManager-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Subir registro de compilación
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Registro-compilacion-iOS
+          path: build-ios.log
+          if-no-files-found: ignore
+          retention-days: 7
