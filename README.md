@@ -8,7 +8,7 @@
 
 <div align="center">
 
-    SAFE MANAGER - PASSWORD MANAGER
+    SAFE MANAGER - PASSWORD MANAGERSV
 
 </div>
 
