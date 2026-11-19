@@ -1,5 +1,6 @@
 
-name: Generar IPA iOS sin firma
+
+name: Generar IPA c2
 
 on:
   workflow_dispatch:
@@ -15,13 +16,13 @@ jobs:
   build-ios-unsigned:
     name: Compilar Safe Manager para iPhone
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Descargar repositorio
         uses: actions/checkout@v4
 
-      - name: Seleccionar Xcode 16.4
+      - name: Seleccionar Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: '16.4'
@@ -32,20 +33,46 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Crear directorio de registros
+        run: mkdir -p logs
+
       - name: Mostrar versiones
         run: |
-          flutter --version
-          dart --version
-          xcodebuild -version
-          xcodebuild -showsdks
+          {
+            echo "===== FECHA ====="
+            date
+            echo "===== FLUTTER ====="
+            flutter --version
+            echo "===== DART ====="
+            dart --version
+            echo "===== XCODE ====="
+            xcodebuild -version
+            xcodebuild -showsdks
+            echo "===== SISTEMA ====="
+            sw_vers
+          } 2>&1 | tee logs/environment.log
 
-      - name: Instalar dependencias
-        run: flutter pub get
+      - name: Obtener dependencias
+        run: |
+          set -o pipefail
+          flutter pub get 2>&1 | tee logs/pub-get.log
+
+      - name: Verificar dependencias
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          flutter pub outdated 2>&1 | tee logs/pub-outdated.log
+
+      - name: Analizar proyecto
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          flutter analyze --no-pub 2>&1 | tee logs/analyze.log
 
       - name: Compilar iOS sin firma
         run: |
           set -o pipefail
-          flutter build ios --release --no-codesign 2>&1 | tee build-ios.log
+          flutter build ios --release --no-codesign 2>&1 | tee logs/build-ios.log
 
       - name: Crear IPA sin firma
         run: |
@@ -71,19 +98,21 @@ jobs:
           test -s SafeManager-unsigned.ipa
           unzip -t SafeManager-unsigned.ipa
 
+          ls -lh SafeManager-unsigned.ipa
+
       - name: Subir IPA para descargar
         uses: actions/upload-artifact@v4
         with:
           name: SafeManager-iPhone-sin-firma
           path: build/ios/ipa/SafeManager-unsigned.ipa
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 14
 
-      - name: Subir registro de compilación
+      - name: Guardar todos los registros
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Registro-compilacion-iOS
-          path: build-ios.log
-          if-no-files-found: ignore
-          retention-days: 7
+          name: SafeManager-iOS-Logs
+          path: logs/
+          if-no-files-found: warn
+          retention-days: 30
